@@ -1,0 +1,11 @@
+{
+  "id": "sparrow-eztv",
+  "name": "EZTV",
+  "description": "TV episodes from EZTV (ported from Sparrow).",
+  "contentTypes": ["show"],
+  "interactive": true,
+  "settingsSchema": "../sparrow-runtime/settings.schema.json",
+  "command": "../sparrow-runtime/acquire.ps1",
+  "arguments": ["-Provider", "EZTV"],
+  "timeoutSeconds": 300
+}

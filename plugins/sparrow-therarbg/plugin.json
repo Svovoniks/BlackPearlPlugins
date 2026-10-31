@@ -1,0 +1,11 @@
+{
+  "id": "sparrow-therarbg",
+  "name": "TheRARBG",
+  "description": "Movie and TV torrents from TheRARBG (ported from Sparrow).",
+  "contentTypes": ["show", "movie"],
+  "interactive": true,
+  "settingsSchema": "../sparrow-runtime/settings.schema.json",
+  "command": "../sparrow-runtime/acquire.ps1",
+  "arguments": ["-Provider", "TheRARBG"],
+  "timeoutSeconds": 300
+}

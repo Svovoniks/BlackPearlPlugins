@@ -1,0 +1,11 @@
+{
+  "id": "sparrow-tokyotoshokan",
+  "name": "TokyoToshokan",
+  "description": "Anime torrents from TokyoToshokan (ported from Sparrow).",
+  "contentTypes": ["anime"],
+  "interactive": true,
+  "settingsSchema": "../sparrow-runtime/settings.schema.json",
+  "command": "../sparrow-runtime/acquire.ps1",
+  "arguments": ["-Provider", "TokyoToshokan"],
+  "timeoutSeconds": 300
+}

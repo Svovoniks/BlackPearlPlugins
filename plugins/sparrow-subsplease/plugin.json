@@ -1,0 +1,11 @@
+{
+  "id": "sparrow-subsplease",
+  "name": "SubsPlease",
+  "description": "Anime releases from SubsPlease (ported from Sparrow).",
+  "contentTypes": ["anime"],
+  "interactive": true,
+  "settingsSchema": "../sparrow-runtime/settings.schema.json",
+  "command": "../sparrow-runtime/acquire.ps1",
+  "arguments": ["-Provider", "SubsPlease"],
+  "timeoutSeconds": 300
+}

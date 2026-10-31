@@ -1,0 +1,8 @@
+[
+  { "key": "downloader", "label": "Download with", "type": "choice", "choices": ["magnet", "qbittorrent"], "default": "magnet", "help": "Magnet opens your default torrent client. qBittorrent sends downloads straight to your library folders." },
+  { "key": "resolution", "label": "Default quality", "type": "number", "default": "1080", "help": "1080, 720, 480 or 2160. Use 0 for any quality." },
+  { "key": "qbittorrent.url", "label": "qBittorrent Web UI address", "default": "http://localhost:8080" },
+  { "key": "qbittorrent.username", "label": "Web UI username" },
+  { "key": "qbittorrent.password", "label": "Web UI password", "type": "password" },
+  { "key": "baseUrl", "label": "Provider mirror (optional)", "help": "Leave empty to use the provider's default address. Mirrors must use HTTPS." }
+]

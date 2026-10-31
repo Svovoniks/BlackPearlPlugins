@@ -1,0 +1,19 @@
+{
+  "downloader": "magnet",
+  "resolution": 1080,
+  "limit": 200,
+  "maxPages": 10,
+  "qbittorrent": {
+    "url": "http://localhost:8080",
+    "username": "",
+    "password": ""
+  },
+  "titles": {
+    "Example Watchroom Title": {
+      "title": "Exact title on this provider",
+      "url": "https://subsplease.org/shows/example/",
+      "season": 2,
+      "resolution": 1080
+    }
+  }
+}
