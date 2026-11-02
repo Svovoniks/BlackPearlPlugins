@@ -1,6 +1,7 @@
 {
   "id": "sparrow-therarbg",
   "name": "TheRARBG",
+  "group": "Sparrow",
   "description": "Movie and TV torrents from TheRARBG (ported from Sparrow).",
   "contentTypes": ["show", "movie"],
   "interactive": true,

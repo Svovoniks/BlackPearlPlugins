@@ -295,6 +295,12 @@ class FixtureHttpResponse : System.Net.WebResponse {
     Check ($script:requests.Count -eq 1 -and $script:sleeps.Count -eq 0 -and !$script:RateLimitedHosts.Count) 'Other HTTP errors do not mark the host as rate-limited'
 }
 
+# Plugins that share a support folder update together, so BlackPearl shows them as one group; each must name it.
+foreach ($manifestFile in Get-ChildItem (Join-Path $repo 'plugins') -Filter plugin.json -Recurse) {
+    $manifest = Get-Content -LiteralPath $manifestFile.FullName -Raw | ConvertFrom-Json
+    if ($manifest.command -like '../sparrow-runtime/*') { Check ($manifest.group -ceq 'Sparrow') "$($manifestFile.Directory.Name) is in the Sparrow group with the other plugins that share sparrow-runtime" }
+}
+
 # Install and run each actual manifest command in Windows PowerShell, with UTF-8 JSON pipes.
 $install = Join-Path $OutputDirectory 'plugins'
 & (Join-Path $repo 'install.ps1') -Destination $install | Out-Null

@@ -1,6 +1,7 @@
 {
   "id": "sparrow-eztv",
   "name": "EZTV",
+  "group": "Sparrow",
   "description": "TV episodes from EZTV (ported from Sparrow).",
   "contentTypes": ["show"],
   "interactive": true,

@@ -77,6 +77,11 @@ Acquisition plugins**, or restart Watchroom. Reinstalling updates shipped files
 and preserves each provider's `settings.json`. To copy manually, copy all five
 `sparrow-*` folders together. Keep `sparrow-runtime` beside the four providers.
 
+The four providers share `sparrow-runtime`, so updating any of them updates it for
+all four. Each `plugin.json` says `"group": "Sparrow"`, and BlackPearl's
+**Settings > Plugins** shows them together in one Sparrow card with a single
+**Update**. A new plugin that uses `sparrow-runtime` must name the same group.
+
 ## Downloads
 
 By default, matching magnets open in the registered torrent client, just as in
