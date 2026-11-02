@@ -1,6 +1,7 @@
 {
   "id": "sparrow-subsplease",
   "name": "SubsPlease",
+  "group": "Sparrow",
   "description": "Anime releases from SubsPlease (ported from Sparrow).",
   "contentTypes": ["anime"],
   "interactive": true,

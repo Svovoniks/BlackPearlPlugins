@@ -1,6 +1,7 @@
 {
   "id": "sparrow-tokyotoshokan",
   "name": "TokyoToshokan",
+  "group": "Sparrow",
   "description": "Anime torrents from TokyoToshokan (ported from Sparrow).",
   "contentTypes": ["anime"],
   "interactive": true,
