@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 . (Join-Path $repo 'plugins/sparrow-runtime/acquire.ps1') -LibraryOnly
+# The real page fetcher, kept before the fixture replaces it.
+$realGetPage = ${function:Get-Page}
 $script:checks = 0
 function Check([bool]$Condition, [string]$Name) {
     if (!$Condition) { throw "FAIL: $Name" }
@@ -251,6 +253,47 @@ $browsed = Invoke-Browse 'TheRARBG' $tvBrowse $empty
 Check (($browsed.choices | ForEach-Object { $_.title }) -join ',' -eq 'Test.Show.S01E02.1080p,Test.Show.S01E02.720p,Test.Show.S01E03.1080p') 'Requested episodes in another quality follow the downloadable releases and come before other episodes'
 Check ($browsed.choices[1].episode -eq 'S01E02' -and !$browsed.choices[1].matches -and $browsed.choices[1].detail -match 'S01E02 in another quality' -and !$browsed.choices[2].episode) 'A requested episode in another quality names its episode without becoming downloadable'
 Check ($browsed.choices[2].detail -match '^Not one of the missing episodes') 'A release of an episode that was not requested says so'
+
+# Rate limiting, with the real page fetcher over a scripted HTTP transport and a clock-free sleep.
+class FixtureHttpResponse : System.Net.WebResponse {
+    [int]$StatusCode
+    FixtureHttpResponse([int]$Code) { $this.StatusCode = $Code }
+}
+& {
+    $script:replies = New-Object Collections.Generic.Queue[int]
+    $script:requests = New-Object Collections.Generic.List[string]
+    $script:sleeps = New-Object Collections.Generic.List[double]
+    function Invoke-WebRequest { param($Uri, $WebSession, $TimeoutSec, $UserAgent, [switch]$UseBasicParsing)
+        $script:requests.Add($Uri)
+        $code = if ($script:replies.Count) { $script:replies.Dequeue() } else { 200 }
+        if ($code -ne 200) { throw (New-Object Net.WebException('fixture', $null, [Net.WebExceptionStatus]::ProtocolError, [FixtureHttpResponse]::new($code))) }
+        return [pscustomobject]@{ Content = "page $Uri" }
+    }
+    function Start-Sleep { param([int]$Seconds, [int]$Milliseconds) $script:sleeps.Add([Math]::Round($Seconds + $Milliseconds / 1000.0)) }
+    function Reset([int[]]$Codes) { $script:replies.Clear(); foreach ($code in $Codes) { $script:replies.Enqueue($code) }; $script:requests.Clear(); $script:sleeps.Clear() }
+    $search = 'https://therarbg.com/get-posts/keywords:Test:category:Movies:category:TV/'
+    $script:RateLimitedHosts = @{}
+
+    Reset @(429, 429)
+    $page = & $realGetPage $search
+    Check ($page -eq "page $search" -and $script:requests.Count -eq 3 -and ($script:sleeps -join ',') -eq '3,6') 'HTTP 429 is retried after growing delays'
+    Reset @()
+    & $realGetPage ($search + '?page=2') | Out-Null
+    Check (($script:sleeps -join ',') -eq '3') 'Later requests to a rate-limited host are spaced out'
+    Reset @()
+    & $realGetPage 'https://subsplease.org/shows/' | Out-Null
+    Check ($script:sleeps.Count -eq 0) 'Other hosts are not slowed down by another host''s rate limit'
+
+    $script:RateLimitedHosts = @{}
+    Reset @(429, 429, 429, 429, 429)
+    Fails { & $realGetPage $search } 'limiting how often.*HTTP 429' 'A persistent HTTP 429 gives up with a rate-limit message'
+    Check ($script:requests.Count -eq 5 -and ($script:sleeps -join ',') -eq '3,6,9,12') 'A persistent HTTP 429 stops after five attempts'
+
+    $script:RateLimitedHosts = @{}
+    Reset @(404)
+    Fails { & $realGetPage $search } 'fixture' 'Other HTTP errors are not retried'
+    Check ($script:requests.Count -eq 1 -and $script:sleeps.Count -eq 0 -and !$script:RateLimitedHosts.Count) 'Other HTTP errors do not mark the host as rate-limited'
+}
 
 # Install and run each actual manifest command in Windows PowerShell, with UTF-8 JSON pipes.
 $install = Join-Path $OutputDirectory 'plugins'
