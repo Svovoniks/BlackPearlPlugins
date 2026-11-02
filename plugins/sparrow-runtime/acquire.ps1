@@ -8,6 +8,9 @@ param(
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $script:AlternativeTitles = @()
+# Hosts that answered HTTP 429 during this run, with the earliest time to send them the next request.
+$script:RateLimitedHosts = @{}
+$script:RateLimitGapSeconds = 3
 
 function Get-Option($Object, [string]$Name, $Default = $null) {
     if ($null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name]) { return $Object.$Name }
@@ -34,11 +37,31 @@ function Get-Page([string]$Url) {
     if (([uri]$Url).Scheme -ne 'https') { throw 'Provider URLs must use HTTPS.' }
     # Preserve Sparrow's browser user agent: some provider frontends reject generic clients.
     $agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    $hostName = ([uri]$Url).Host
     for ($attempt = 1; ; $attempt++) {
-        try { $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 20 -WebSession $script:ProviderSession -UserAgent $agent; break }
+        # A host that has rate-limited this run gets its requests spaced out (TheRARBG allows about one search every few seconds).
+        if ($script:RateLimitedHosts.ContainsKey($hostName)) {
+            $wait = ($script:RateLimitedHosts[$hostName] - [DateTime]::UtcNow).TotalMilliseconds
+            if ($wait -gt 0) { Start-Sleep -Milliseconds ([int][Math]::Ceiling($wait)) }
+        }
+        try {
+            $response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 20 -WebSession $script:ProviderSession -UserAgent $agent
+            if ($script:RateLimitedHosts.ContainsKey($hostName)) { $script:RateLimitedHosts[$hostName] = [DateTime]::UtcNow.AddSeconds($script:RateLimitGapSeconds) }
+            break
+        }
         catch [Net.WebException] {
-            # Cloudflare 52x and gateway errors are usually brief origin outages (TokyoToshokan often).
             $status = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+            if ($status -eq 429) {
+                if ($attempt -ge 5) { throw 'The provider is limiting how often it can be searched (HTTP 429). Wait a minute and try again.' }
+                $delay = 3 * $attempt
+                $retryAfter = 0
+                try { [void][int]::TryParse([string]$_.Exception.Response.Headers['Retry-After'], [ref]$retryAfter) } catch { }
+                if ($retryAfter -gt $delay) { $delay = [Math]::Min(30, $retryAfter) }
+                $script:RateLimitedHosts[$hostName] = [DateTime]::UtcNow.AddSeconds($delay)
+                continue
+            }
+            if ($script:RateLimitedHosts.ContainsKey($hostName)) { $script:RateLimitedHosts[$hostName] = [DateTime]::UtcNow.AddSeconds($script:RateLimitGapSeconds) }
+            # Cloudflare 52x and gateway errors are usually brief origin outages (TokyoToshokan often).
             if ($attempt -ge 3 -or $status -notin @(502, 503, 504, 520, 521, 522, 523, 524)) { throw }
             Start-Sleep -Seconds (2 * $attempt)
         }
