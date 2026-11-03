@@ -108,7 +108,18 @@ ${function:Send-Torrents} = { param($Jobs, $Settings) $script:packJobs = @($Jobs
 $result = Invoke-Acquisition 'TokyoToshokan' $packRequest $empty
 Check ($result.success -and $script:packJobs.Count -eq 1 -and $script:packJobs[0].Directory -eq $english.targetDirectory -and $script:packJobs[0].Magnet -match ('e' * 40)) 'A ticked OVA downloads on its own to the request''s folder'
 $packRequest.selectedReleases = @($magnet.Replace($hash, ('e' * 40)), $magnet.Replace($hash, ('d' * 40)))
-Fails { Invoke-Acquisition 'TokyoToshokan' $packRequest $empty } 'no longer matches' 'Packs cannot be combined with other releases'
+$result = Invoke-Acquisition 'TokyoToshokan' $packRequest $empty
+Check ($result.success -and $script:packJobs.Count -eq 2 -and @($script:packJobs | Where-Object { $_.Directory -eq $english.targetDirectory }).Count -eq 2) 'Several ticked packs and specials download together'
+$packRequest.selectedReleases = @($magnet.Replace($hash, ('e' * 40)), $magnet.Replace($hash, ('1' * 40)))
+Fails { Invoke-Acquisition 'TokyoToshokan' $packRequest $empty } 'no longer matches' 'A pack does not make a ticked release of another episode downloadable'
+# A season pack ticked together with a release of a requested episode downloads both.
+$script:pages[$tokyo + '%2002'] = Feed @($item2, $item3, (FeedItem '[Group] Test &amp; Show [Batch 01-12] (1080p)' $magnet.Replace($hash, ('c' * 40))))
+$mixed = $request | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+$mixed | Add-Member -NotePropertyName action -NotePropertyValue 'acquire'
+$mixed | Add-Member -NotePropertyName selectedReleases -NotePropertyValue @($magnet, $magnet.Replace($hash, ('c' * 40)))
+$result = Invoke-Acquisition 'TokyoToshokan' $mixed $empty
+Check ($result.success -and $script:packJobs.Count -eq 2 -and $script:packJobs[0].Magnet -match ('c' * 40) -and $script:packJobs[1].Magnet -match $hash) 'A season pack downloads together with a ticked episode release'
+$script:pages[$tokyo + '%2002'] = Feed @($item2, $item3)
 ${function:Send-Torrents} = $realSend
 $script:anilist.Clear()
 $script:pages['https://therarbg.com/get-posts/keywords:Test%20%26%20Show:category:Movies:category:TV/'] ='<tr class="list-entry"><td><a href="/post/a/">A</a></td></tr><tr class="list-entry"><td><a href="/post/b/">B</a></td></tr>'

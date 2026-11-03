@@ -330,7 +330,7 @@ function Get-TitleKeys($Request, $Binding) {
 }
 function Test-Unnumbered($Release, $Request, $Binding, [string]$ProviderName) {
     # A release of this title without an episode number, such as a season pack or an OVA. Nothing can tell which
-    # episodes it holds, so it is only downloaded when the user ticks it alone.
+    # episodes it holds, so it is only downloaded when the user ticks it.
     if ($Request.scope -eq 'movie' -or $ProviderName -eq 'SubsPlease') { return $false }
     $title = [regex]::Replace($Release.Title, '^\s*(?:\[[^\]]+\]\s*)+', '')
     if ($title -match '(?i)(?<![a-z0-9])(?:S\d{1,2}E\d{1,3}|\d{1,2}x\d{1,3})(?!\d)' -or $title -match '^.+?\s+-\s+\d{1,4}(?:v\d+)?(?=\s|\[|\(|$)') { return $false }
@@ -446,23 +446,30 @@ function Invoke-Acquisition([string]$ProviderName, $Request, $Settings) {
     $jobs = @(); $missing = @(); $used = @{}; $usedIds = @{}
     $selected = @(Get-Option $Request 'selectedReleases' @() | Where-Object { $_ })
     if ((Get-Option $Request 'action') -eq 'acquire' -and !$selected.Count) { throw 'Select at least one release before downloading.' }
-    if ($selected.Count -eq 1) {
-        $pack = $releases | Where-Object { $_.Url -eq $selected[0] -and (Test-Unnumbered $_ $Request $binding $ProviderName) } | Select-Object -First 1
-        if ($pack) {
-            # A season pack or special the user ticked on its own: it goes where the request's files belong.
-            $destination = $Request.targetDirectory
-            if ($Request.scope -eq 'season') {
-                $destination = $Request.seasonDirectory
-                if (!$destination) { $destination = Join-Path $Request.targetDirectory $(if ([int]$Request.season -eq 0) { 'Specials' } else { 'Season {0:00}' -f [int]$Request.season }) }
-            }
-            $message = Send-Torrents @([pscustomobject]@{ Magnet = (Get-Magnet $pack $ProviderName); Directory = $destination }) $Settings
-            return @{ success = $true; message = "$($pack.Title) for $($Request.name). $message" }
+    # Season packs and specials the user ticked, alone or with episode releases: they go where the request's files belong.
+    $packs = @(); $packTitles = @()
+    foreach ($pack in @($releases | Where-Object { $_.Url -in $selected -and (Test-Unnumbered $_ $Request $binding $ProviderName) })) {
+        if ($usedIds.ContainsKey($pack.Url)) { continue }
+        $usedIds[$pack.Url] = $true; $packs += $pack.Url
+        $magnet = Get-Magnet $pack $ProviderName
+        $hash = [regex]::Match($magnet, '(?i)xt=urn:btih:([^&]+)').Groups[1].Value.ToLowerInvariant()
+        if ($used.ContainsKey($hash)) { continue }
+        $used[$hash] = $true; $packTitles += $pack.Title
+        $destination = $Request.targetDirectory
+        if ($Request.scope -eq 'season') {
+            $destination = $Request.seasonDirectory
+            if (!$destination) { $destination = Join-Path $Request.targetDirectory $(if ([int]$Request.season -eq 0) { 'Specials' } else { 'Season {0:00}' -f [int]$Request.season }) }
         }
+        $jobs += [pscustomobject]@{ Magnet = $magnet; Directory = $destination }
+    }
+    if ($packs.Count -and $packs.Count -eq $selected.Count) {
+        $message = Send-Torrents $jobs $Settings
+        return @{ success = $true; message = "$($packTitles -join ', ') for $($Request.name). $message" }
     }
     $wanted = @($null)
     if ($Request.scope -ne 'movie') { $wanted = $episodes }
     foreach ($episode in $wanted) {
-        $matches = @($releases | Where-Object { (!$selected.Count -or $_.Url -in $selected) -and (Test-Release $_ $Request $episode $binding $ProviderName) -and ($quality -eq 0 -or (Get-Resolution $_) -eq $quality) } | Sort-Object Title, Url)
+        $matches = @($releases | Where-Object { (!$selected.Count -or ($_.Url -in $selected -and $_.Url -notin $packs)) -and (Test-Release $_ $Request $episode $binding $ProviderName) -and ($quality -eq 0 -or (Get-Resolution $_) -eq $quality) } | Sort-Object Title, Url)
         if (!$matches.Count) { $missing += $(if ($null -eq $episode) { $Request.name } else { 'S{0:00}E{1:00}' -f [int]$episode.season, [int]$episode.episode }); continue }
         $magnet = Get-Magnet $matches[0] $ProviderName
         $usedIds[$matches[0].Url] = $true
@@ -531,7 +538,7 @@ function Invoke-Browse([string]$ProviderName, $Request, $Settings) {
             $resolution = Get-Resolution $release
             $assignable = !$match -and !$episodeName -and (Test-Unnumbered $release $Request $binding $ProviderName)
             $detail = if ($match) { "Requested: $episodeName" }
-                elseif ($assignable) { $(if ($release.Title -match '(?i)\b(?:OVA|OAD|ONA|Special|SP)\b') { 'Special' } else { 'Season pack or batch' }) + ' with no episode number: tick it on its own to download it' }
+                elseif ($assignable) { $(if ($release.Title -match '(?i)\b(?:OVA|OAD|ONA|Special|SP)\b') { 'Special' } else { 'Season pack or batch' }) + ' with no episode number: tick it to download it' }
                 elseif ($episodeName -and $quality -ne 0 -and $resolution -ne $quality) { "$episodeName in another quality (selected ${quality}p)" }
                 elseif ($episodeName) { "$episodeName, left out by the release filter" }
                 elseif ($Request.scope -ne 'movie' -and $release.Title -match '(?i)(?<![a-z0-9])(?:S\d{1,2}E\d{1,3}|\d{1,2}x\d{1,3})(?!\d)') { 'Not one of the missing episodes' }
