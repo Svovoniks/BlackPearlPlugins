@@ -149,8 +149,8 @@ to this Watchroom title; keep its URL/title and numbering consistent. Specials
 without explicit season codes need an explicit numbering binding.
 
 Releases of the title without an episode number, such as season packs, batches and
-OVAs, are listed but never ticked or matched automatically. Tick one on its own to
-download it to the request's folder. A typed search title may be the start of the
+OVAs, are listed but never ticked or matched automatically. Tick any of them, alone
+or together with episode releases, to download them to the request's folder. A typed search title may be the start of the
 provider's name for the show; a release filter replaces the exact-title check.
 
 `filter` supports Sparrow's literal templates: `<<variable>>`, `<<fix:d:2>>`,
