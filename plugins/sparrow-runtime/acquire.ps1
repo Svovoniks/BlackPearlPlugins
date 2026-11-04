@@ -461,7 +461,8 @@ function Invoke-Acquisition([string]$ProviderName, $Request, $Settings) {
         if (@($selected | Where-Object { $_ -notin $listed }).Count) { throw 'A selected release is no longer listed for this title. Refresh the list and select again.' }
         $loose = Get-UnfilteredBinding $binding
         foreach ($episode in $wanted) {
-            if (!@($chosen | Where-Object { Test-Release $_ $Request $episode $loose $ProviderName }).Count) { $missing += $(if ($null -eq $episode) { $Request.name } else { 'S{0:00}E{1:00}' -f [int]$episode.season, [int]$episode.episode }) }
+            # Either check counts: a filter can exclude a release, or stand in for its exact title.
+            if (!@($chosen | Where-Object { (Test-Release $_ $Request $episode $binding $ProviderName) -or (Test-Release $_ $Request $episode $loose $ProviderName) }).Count) { $missing += $(if ($null -eq $episode) { $Request.name } else { 'S{0:00}E{1:00}' -f [int]$episode.season, [int]$episode.episode }) }
         }
     }
     else {

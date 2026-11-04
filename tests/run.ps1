@@ -240,6 +240,16 @@ $interactive.selectedReleases = @($releases[0].Url, ('magnet:?xt=urn:btih:' + ('
 $oldJobs = $script:jobs
 Fails { Invoke-Acquisition 'TokyoToshokan' $interactive $empty } 'no longer listed' 'A selection the provider no longer lists fails'
 Check ([object]::ReferenceEquals($oldJobs, $script:jobs)) 'A stale selection hands nothing off, not even the releases still listed'
+# A release filter stands in for the exact title, so a ticked release only the filter matches still counts as its episode.
+$filteredUrl = $magnet.Replace($hash, ('7' * 40))
+$realGetReleases = ${function:Get-Releases}
+${function:Get-Releases} = { param($ProviderName, $Request, $Settings, $Binding) @([pscustomobject]@{ Title = '[G] Test Show Full - 02 [1080p][ABCDEF12].mkv'; Url = $filteredUrl }) }
+$interactive.options = Json '{"query":"Test","resolution":1080,"filter":"[G] Test Show Full - <<n>> [1080p][<<c>>].mkv"}'
+$interactive.selectedReleases = @($filteredUrl)
+$result = Invoke-Acquisition 'TokyoToshokan' $interactive $empty
+Check ($result.success -and $script:jobs.Count -eq 1 -and $script:jobs[0].Magnet -eq $filteredUrl -and $result.message -notmatch 'Not selected') 'A ticked release matched only through a release filter is not reported as left out'
+${function:Get-Releases} = $realGetReleases
+$interactive.options = Json '{"query":"Test & Show","resolution":1080,"filter":""}'
 $interactive.options = Json '{"query":"New title","sourceUrl":null,"episodeOffset":null,"providerSeason":null}'
 $bound = Get-Binding $interactive (Json '{"titles":{"Test & Show":{"title":"Old title","url":"https://old.invalid/","season":2,"episodeOffset":12,"filter":"saved"}}}')
 Check ($bound.title -eq 'New title' -and !$bound.url -and $null -eq $bound.season -and $null -eq $bound.episodeOffset -and $bound.filter -eq 'saved') 'Interactive source and numbering changes override saved bindings without discarding unrelated settings'
