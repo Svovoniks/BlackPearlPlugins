@@ -111,14 +111,27 @@ $packRequest.selectedReleases = @($magnet.Replace($hash, ('e' * 40)), $magnet.Re
 $result = Invoke-Acquisition 'TokyoToshokan' $packRequest $empty
 Check ($result.success -and $script:packJobs.Count -eq 2 -and @($script:packJobs | Where-Object { $_.Directory -eq $english.targetDirectory }).Count -eq 2) 'Several ticked packs and specials download together'
 $packRequest.selectedReleases = @($magnet.Replace($hash, ('e' * 40)), $magnet.Replace($hash, ('1' * 40)))
-Fails { Invoke-Acquisition 'TokyoToshokan' $packRequest $empty } 'no longer matches' 'A pack does not make a ticked release of another episode downloadable'
+$result = Invoke-Acquisition 'TokyoToshokan' $packRequest $empty
+Check ($result.success -and $script:packJobs.Count -eq 2 -and $result.message -match 'Not selected: S02E13') 'A pack downloads together with a ticked release of another episode, and the message names the requested episode left out'
 # A season pack ticked together with a release of a requested episode downloads both.
 $script:pages[$tokyo + '%2002'] = Feed @($item2, $item3, (FeedItem '[Group] Test &amp; Show [Batch 01-12] (1080p)' $magnet.Replace($hash, ('c' * 40))))
 $mixed = $request | ConvertTo-Json -Depth 8 | ConvertFrom-Json
 $mixed | Add-Member -NotePropertyName action -NotePropertyValue 'acquire'
 $mixed | Add-Member -NotePropertyName selectedReleases -NotePropertyValue @($magnet, $magnet.Replace($hash, ('c' * 40)))
 $result = Invoke-Acquisition 'TokyoToshokan' $mixed $empty
-Check ($result.success -and $script:packJobs.Count -eq 2 -and $script:packJobs[0].Magnet -match ('c' * 40) -and $script:packJobs[1].Magnet -match $hash) 'A season pack downloads together with a ticked episode release'
+Check ($result.success -and $script:packJobs.Count -eq 2 -and @($script:packJobs | Where-Object { $_.Magnet -match ('c' * 40) }).Count -eq 1 -and @($script:packJobs | Where-Object { $_.Magnet -match $hash }).Count -eq 1) 'A season pack downloads together with a ticked episode release'
+# Two versions of one episode: both download, and the episode isn't reported as left out.
+$altVersion = $magnet.Replace($hash, ('a' * 40))
+$script:pages[$tokyo + '%2002'] = Feed @($item2, $item3, (FeedItem '[Other] Test &amp; Show - 02 [1080p][ABCDEF12].mkv' $altVersion))
+$mixed.selectedReleases = @($magnet, $altVersion)
+$result = Invoke-Acquisition 'TokyoToshokan' $mixed $empty
+Check ($result.success -and $script:packJobs.Count -eq 2 -and $result.message -notmatch 'Not selected') 'Two ticked versions of the same episode both download'
+# Another quality than the chosen one downloads when ticked, and still counts as that episode.
+$otherQuality = $magnet.Replace($hash, ('9' * 40))
+$script:pages[$tokyo + '%2002'] = Feed @($item2, $item3, (FeedItem '[Group] Test &amp; Show - 02 [720p][ABCDEF12].mkv' $otherQuality))
+$mixed.selectedReleases = @($otherQuality)
+$result = Invoke-Acquisition 'TokyoToshokan' $mixed $empty
+Check ($result.success -and $script:packJobs.Count -eq 1 -and $script:packJobs[0].Magnet -match ('9' * 40) -and $result.message -notmatch 'Not selected') 'A ticked release in another quality downloads as that episode'
 $script:pages[$tokyo + '%2002'] = Feed @($item2, $item3)
 ${function:Send-Torrents} = $realSend
 $script:anilist.Clear()
@@ -221,9 +234,12 @@ $interactive.selectedReleases = @($releases[0].Url)
 $result = Invoke-Acquisition 'TokyoToshokan' $interactive $empty
 Check ($result.success -and $script:jobs.Count -eq 1 -and $script:jobs[0].Magnet -eq $releases[0].Url) 'Confirmation queues only the selected matching release'
 $interactive.selectedReleases = @($releases[1].Url)
-Fails { Invoke-Acquisition 'TokyoToshokan' $interactive $empty } 'no longer matches' 'A release for another episode cannot bypass matching by being explicitly selected'
-$interactive.selectedReleases = @('magnet:?xt=urn:btih:' + ('b' * 40))
-Fails { Invoke-Acquisition 'TokyoToshokan' $interactive $empty } 'no longer matches' 'Stale release selections fail before any handoff'
+$result = Invoke-Acquisition 'TokyoToshokan' $interactive $empty
+Check ($result.success -and $script:jobs.Count -eq 1 -and $script:jobs[0].Magnet -eq $releases[1].Url -and $result.message -match 'Not selected: S01E02') 'A ticked release of another episode downloads, and the message names the requested episode left out'
+$interactive.selectedReleases = @($releases[0].Url, ('magnet:?xt=urn:btih:' + ('b' * 40)))
+$oldJobs = $script:jobs
+Fails { Invoke-Acquisition 'TokyoToshokan' $interactive $empty } 'no longer listed' 'A selection the provider no longer lists fails'
+Check ([object]::ReferenceEquals($oldJobs, $script:jobs)) 'A stale selection hands nothing off, not even the releases still listed'
 $interactive.options = Json '{"query":"New title","sourceUrl":null,"episodeOffset":null,"providerSeason":null}'
 $bound = Get-Binding $interactive (Json '{"titles":{"Test & Show":{"title":"Old title","url":"https://old.invalid/","season":2,"episodeOffset":12,"filter":"saved"}}}')
 Check ($bound.title -eq 'New title' -and !$bound.url -and $null -eq $bound.season -and $null -eq $bound.episodeOffset -and $bound.filter -eq 'saved') 'Interactive source and numbering changes override saved bindings without discarding unrelated settings'
@@ -262,7 +278,7 @@ $script:pages['https://therarbg.com/fixture-show-search/'] = @(
 ) -join "`n"
 $browsed = Invoke-Browse 'TheRARBG' $tvBrowse $empty
 Check (($browsed.choices | ForEach-Object { $_.title }) -join ',' -eq 'Test.Show.S01E02.1080p,Test.Show.S01E02.720p,Test.Show.S01E03.1080p') 'Requested episodes in another quality follow the downloadable releases and come before other episodes'
-Check ($browsed.choices[1].episode -eq 'S01E02' -and !$browsed.choices[1].matches -and $browsed.choices[1].detail -match 'S01E02 in another quality' -and !$browsed.choices[2].episode) 'A requested episode in another quality names its episode without becoming downloadable'
+Check ($browsed.choices[1].episode -eq 'S01E02' -and !$browsed.choices[1].matches -and $browsed.choices[1].detail -match 'S01E02 in another quality' -and !$browsed.choices[2].episode) 'A requested episode in another quality names its episode without counting as a match'
 Check ($browsed.choices[2].detail -match '^Not one of the missing episodes') 'A release of an episode that was not requested says so'
 
 # Rate limiting, with the real page fetcher over a scripted HTTP transport and a clock-free sleep.

@@ -37,9 +37,10 @@ downloads before that. To change any step:
    a filter from a selected release, or adjust anime numbering. The release list
    reloads on its own when an option changes.
 4. Click releases to tick them, or use **Select best matches** to tick the best
-   release of each requested episode; those releases are listed first. Only
-   releases of requested episodes in the chosen quality are downloadable; choose
-   one version per episode.
+   release of each requested episode; those releases are listed first. Any listed
+   release can be ticked and downloaded, including several versions of an episode,
+   another quality or an episode that wasn't requested. The picker warns about
+   those ticks but doesn't stop them.
 5. Choose **Download**. Browsing and option changes never download.
 
 Release lists exclude unrelated titles and, for movies, different release years.
